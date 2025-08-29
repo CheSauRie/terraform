@@ -1,0 +1,79 @@
+#!/bin/bash -eux
+# rc.local for Ubuntu 22.04 (netplan)
+# Apply network from VMware OVF (guestinfo.*) or fall back to DHCP
+# Requires open-vm-tools (vmtoolsd)
+
+# Run once
+if [ -e /root/ran_customization ]; then
+  exit 0
+fi
+
+# Find vmtoolsd
+VMT="/usr/bin/vmtoolsd"
+if ! command -v ${VMT} >/dev/null 2>&1; then
+  VMT="$(command -v vmtoolsd || true)"
+fi
+
+OVFENV="$(${VMT} --cmd 'info-get guestinfo.ovfEnv' 2>/dev/null || true)"
+
+extract_prop() {
+  echo "${OVFENV}" | sed -n "s/.*oe:key=\"${1}\"[^>]*oe:value=\"\([^\"]*\)\".*/\1/p" | head -n1
+}
+
+HOSTNAME_VAL="$(extract_prop guestinfo.hostname || true)"
+IP_VAL="$(extract_prop guestinfo.ipaddress || true)"
+NETMASK_VAL="$(extract_prop guestinfo.netmask || true)"   # prefix (vd 24)
+GW_VAL="$(extract_prop guestinfo.gateway || true)"
+DNS_VAL="$(extract_prop guestinfo.dns || true)"
+DOMAIN_VAL="$(extract_prop guestinfo.domain || true)"
+
+# Detect primary interface
+IFACE="$(ip route 2>/dev/null | awk '/default/ {print $5; exit}')"
+if [ -z "${IFACE:-}" ]; then
+  IFACE="$(ip -o link show | awk -F': ' '{print $2}' | grep -v -E 'lo|docker|veth|br-|virbr|tap|tun' | head -n1)"
+fi
+IFACE="${IFACE:-ens160}"
+
+NETPLAN_DIR="/etc/netplan"
+NETPLAN_FILE="${NETPLAN_DIR}/99-ovf.yaml"
+mkdir -p "${NETPLAN_DIR}"
+
+format_dns() {
+  echo "$1" | awk -F',' '{
+    out=""; for(i=1;i<=NF;i++){gsub(/^ +| +$/,"",$i); if($i!=""){out=out $i ((i<NF)?",":"")}}
+    print out
+  }'
+}
+
+if [ -z "${HOSTNAME_VAL}" ]; then
+  # DHCP fallback
+  cat > "${NETPLAN_FILE}" <<EOF
+network:
+  version: 2
+  ethernets:
+    ${IFACE}:
+      dhcp4: true
+EOF
+else
+  DNS_JOINED="$(format_dns "${DNS_VAL}")"
+  cat > "${NETPLAN_FILE}" <<EOF
+network:
+  version: 2
+  ethernets:
+    ${IFACE}:
+      addresses: [${IP_VAL}/${NETMASK_VAL}]
+      gateway4: ${GW_VAL}
+      nameservers:
+        addresses: [${DNS_JOINED}]
+$( [ -n "${DOMAIN_VAL}" ] && printf "        search: [${DOMAIN_VAL}]\n" )
+EOF
+  hostnamectl set-hostname "${HOSTNAME_VAL}" || true
+fi
+
+netplan generate
+netplan apply || systemctl restart systemd-networkd || true
+
+touch /root/ran_customization
+
+chmod +x /etc/rc.local 2>/dev/null || true
+exit 0
