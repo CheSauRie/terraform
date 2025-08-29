@@ -1,0 +1,67 @@
+#!/bin/bash -eux
+# Safe rc.local for Ubuntu 22.04 (netplan) — opt-in mode
+
+# Run once guard (chỉ khóa khi đã cấu hình xong)
+if [ -e /root/ran_customization ]; then
+  exit 0
+fi
+
+# vmtoolsd
+VMT="$(command -v vmtoolsd || echo /usr/bin/vmtoolsd)"
+[ -x "$VMT" ] || exit 0
+
+OVFENV="$($VMT --cmd 'info-get guestinfo.ovfEnv' 2>/dev/null || true)"
+
+extract_prop() {
+  echo "${OVFENV}" | sed -n "s/.*oe:key=\"${1}\"[^>]*oe:value=\"\([^\"]*\)\".*/\1/p" | head -n1
+}
+
+# Gate/Flag: chỉ chạy khi bật
+RC_ENABLE="$(extract_prop guestinfo.rc_enable || true)"
+[ "${RC_ENABLE}" = "true" ] || exit 0
+
+HOSTNAME_VAL="$(extract_prop guestinfo.hostname || true)"
+IP_VAL="$(extract_prop guestinfo.ipaddress || true)"
+NETMASK_VAL="$(extract_prop guestinfo.netmask || true)"   # prefix, e.g. 24
+GW_VAL="$(extract_prop guestinfo.gateway || true)"
+DNS_VAL="$(extract_prop guestinfo.dns || true)"           # comma-separated
+DOMAIN_VAL="$(extract_prop guestinfo.domain || true)"
+
+# Nếu thiếu thông tin quan trọng -> không làm gì, tránh phá mạng hiện tại
+if [ -z "${HOSTNAME_VAL}" ] || [ -z "${IP_VAL}" ] || [ -z "${NETMASK_VAL}" ]; then
+  exit 0
+fi
+
+# Detect primary iface
+IFACE="$(ip route 2>/dev/null | awk '/default/ {print $5; exit}')"
+if [ -z "${IFACE:-}" ]; then
+  IFACE="$(ip -o link show | awk -F': ' '{print $2}' | grep -v -E 'lo|docker|veth|br-|virbr|tap|tun' | head -n1)"
+fi
+IFACE="${IFACE:-ens160}"
+
+NETPLAN_DIR="/etc/netplan"
+NETPLAN_FILE="${NETPLAN_DIR}/99-ovf.yaml"
+mkdir -p "${NETPLAN_DIR}"
+
+# format DNS list
+DNS_JOINED="$(echo "${DNS_VAL}" | awk -F',' '{out=""; for(i=1;i<=NF;i++){gsub(/^ +| +$/,"",$i); if($i!=""){out=out $i ((i<NF)?",":"")}}; print out}')"
+
+# Write netplan (STATIC ONLY — không bao giờ ép về DHCP)
+cat > "${NETPLAN_FILE}" <<EOF
+network:
+  version: 2
+  ethernets:
+    ${IFACE}:
+      addresses: [${IP_VAL}/${NETMASK_VAL}]
+$( [ -n "${GW_VAL}" ]    && printf "      gateway4: %s\n" "${GW_VAL}" )
+$( [ -n "${DNS_JOINED}" ] && printf "      nameservers:\n        addresses: [%s]\n" "${DNS_JOINED}" )
+$( [ -n "${DOMAIN_VAL}" ] && printf "        search: [%s]\n" "${DOMAIN_VAL}" )
+EOF
+
+[ -n "${HOSTNAME_VAL}" ] && hostnamectl set-hostname "${HOSTNAME_VAL}" || true
+
+netplan generate
+netplan apply || systemctl restart systemd-networkd || true
+
+touch /root/ran_customization
+exit 0
