@@ -32,6 +32,7 @@ vms = {
     ipv4_mask = 24
     ipv4_gw   = "10.10.20.1"
     dns       = ["10.10.1.10", "8.8.8.8"]
+    datastore = "Datastore02"
   }
 
   db01 = {
