@@ -1,0 +1,46 @@
+# --- vSphere credentials ---
+vsphere_server   = "vcenter.local"
+vsphere_user     = "administrator@vsphere.local"
+vsphere_password = "YourPasswordHere"
+
+# --- Environment info ---
+datacenter = "Datacenter01"
+cluster    = "Cluster01"
+datastore  = "Datastore01"
+network    = "VM Network"
+folder     = "Terraform-VMs"
+
+# --- Template name ---
+template_name = "ubuntu-22-template"
+
+# --- VM list ---
+vms = {
+  web01 = {
+    name      = "web01"
+    cpu       = 2
+    memory_mb = 4096
+    disk_gb   = 40
+    # DHCP (bỏ trống IP)
+  }
+
+  web02 = {
+    name      = "web02"
+    cpu       = 2
+    memory_mb = 4096
+    disk_gb   = 40
+    ipv4      = "10.10.20.52"
+    ipv4_mask = 24
+    ipv4_gw   = "10.10.20.1"
+    dns       = ["10.10.1.10", "8.8.8.8"]
+  }
+
+  db01 = {
+    name      = "db01"
+    cpu       = 4
+    memory_mb = 8192
+    disk_gb   = 100
+    ipv4      = "10.10.20.60"
+    ipv4_mask = 24
+    ipv4_gw   = "10.10.20.1"
+  }
+}
