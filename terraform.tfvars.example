@@ -6,33 +6,30 @@ vsphere_password = "YourPasswordHere"
 # --- Environment info ---
 datacenter = "Datacenter01"
 cluster    = "Cluster01"
-datastore  = "Datastore01"
+datastore  = "SharedDatastore"
 network    = "VM Network"
 folder     = "Terraform-VMs"
 
 # --- Template name ---
 template_name = "ubuntu-22-template"
 
-# --- VM list ---
+# --- Default SSH for netplan updates ---
+ssh_user        = "ubuntu"
+ssh_private_key = file("~/.ssh/id_rsa")
+
+# --- VM definitions ---
 vms = {
   web01 = {
     name      = "web01"
     cpu       = 2
     memory_mb = 4096
     disk_gb   = 40
-    # DHCP (bỏ trống IP)
-  }
+    domain    = "example.local"
+    dns       = ["10.10.20.10", "10.10.20.11"]
 
-  web02 = {
-    name      = "web02"
-    cpu       = 2
-    memory_mb = 4096
-    disk_gb   = 40
-    ipv4      = "10.10.20.52"
-    ipv4_mask = 24
-    ipv4_gw   = "10.10.20.1"
-    dns       = ["10.10.1.10", "8.8.8.8"]
-    datastore = "Datastore02"
+    new_ipv4_address = "10.10.20.52"
+    new_ipv4_prefix  = 24
+    new_ipv4_gateway = "10.10.20.1"
   }
 
   db01 = {
@@ -40,8 +37,13 @@ vms = {
     cpu       = 4
     memory_mb = 8192
     disk_gb   = 100
-    ipv4      = "10.10.20.60"
-    ipv4_mask = 24
-    ipv4_gw   = "10.10.20.1"
+    datastore = "FastTierDatastore"
+
+    netplan_interface = "ens192"
+    new_ipv4_address  = "10.10.20.53"
+    new_ipv4_prefix   = 24
+    new_ipv4_gateway  = "10.10.20.1"
+    ssh_user          = "admin"
+    ssh_private_key   = file("~/.ssh/id_rsa_db")
   }
 }

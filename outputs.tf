@@ -1,11 +1,11 @@
 output "vm_ids" {
-  value = { for k, vm in vsphere_virtual_machine.vm : vm.name => vm.id }
+  value = { for k, vm in vsphere_virtual_machine.vm : k => vm.id }
 }
 
 output "vm_ips" {
-  value = { for k, vm in vsphere_virtual_machine.vm : vm.name => vm.default_ip_address }
+  value = { for k, vm in vsphere_virtual_machine.vm : k => vm.default_ip_address }
 }
 
 output "vm_names" {
-  value = [for vm in vsphere_virtual_machine.vm : vm.name]
+  value = { for k, vm in vsphere_virtual_machine.vm : k => vm.name }
 }
