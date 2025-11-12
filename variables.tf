@@ -31,5 +31,6 @@ variable "vms" {
     ipv4_mask  : optional(number)
     ipv4_gw    : optional(string)
     dns        : optional(list(string))
+    datastore  : optional(string)
   }))
 }
