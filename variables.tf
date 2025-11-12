@@ -13,23 +13,41 @@ variable "folder"     { type = string, default = "" }
 # --- Template ---
 variable "template_name" { type = string }
 
-# --- Default DNS servers ---
-variable "default_dns" {
-  type    = list(string)
-  default = ["8.8.8.8", "1.1.1.1"]
+# --- VM settings ---
+variable "vms" {
+  description = "Danh sách VM cần tạo và cấu hình"
+  type = map(object({
+    name              = string
+    cpu               = number
+    memory_mb         = number
+    disk_gb           = number
+    domain            = optional(string, "local")
+    datastore         = optional(string)
+    dns               = optional(list(string))
+    netplan_interface = optional(string, "ens160")
+    new_ipv4_address  = optional(string, "")
+    new_ipv4_prefix   = optional(number, 24)
+    new_ipv4_gateway  = optional(string, "")
+    ssh_user          = optional(string)
+    ssh_private_key   = optional(string)
+  }))
 }
 
-# --- VM list definition ---
-variable "vms" {
-  description = "Danh sách VM cần tạo (theo dạng map)"
-  type = map(object({
-    name       : string
-    cpu        : number
-    memory_mb  : number
-    disk_gb    : number
-    ipv4       : optional(string)
-    ipv4_mask  : optional(number)
-    ipv4_gw    : optional(string)
-    dns        : optional(list(string))
-  }))
+# --- SSH connection defaults ---
+variable "ssh_user" {
+  type        = string
+  default     = "ubuntu"
+  description = "User SSH mặc định dùng để cấu hình netplan"
+}
+
+variable "ssh_private_key" {
+  type        = string
+  description = "Private key nội dung hoặc dùng file() để load"
+}
+
+# --- DNS mặc định ---
+variable "default_dns" {
+  type        = list(string)
+  default     = []
+  description = "DNS server mặc định, sẽ dùng nếu VM không khai báo riêng"
 }
